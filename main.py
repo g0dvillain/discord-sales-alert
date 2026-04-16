@@ -1,11 +1,34 @@
 import requests
 import time
 
+# ---------------- CONFIG ----------------
 STEAM_API = "https://www.cheapshark.com/api/1.0/deals"
 EPIC_API = "https://store-site-backend-static.ak.epicgames.com/freeGamesPromotions?locale=en-US&country=AU&allowCountries=AU"
 
-seen_steam = set()
-seen_epic = set()
+DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1494419687243644938/G2_Fj5bh69X6qS98YplRImZmcKs1FZV5fJm8JskCKjxuLSbGVSgKrXIptjJxC5UH7T1r"
+
+sent_ids = set()
+
+
+# ---------------- DISCORD ----------------
+def send_discord(title, description, color=0x00ff99):
+    if not DISCORD_WEBHOOK:
+        return
+
+    payload = {
+        "embeds": [
+            {
+                "title": title,
+                "description": description,
+                "color": color
+            }
+        ]
+    }
+
+    try:
+        requests.post(DISCORD_WEBHOOK, json=payload)
+    except Exception as e:
+        print("Discord error:", e)
 
 
 # ---------------- STEAM ----------------
@@ -15,7 +38,7 @@ def fetch_steam():
             STEAM_API,
             params={
                 "storeID": 1,
-                "pageSize": 30,
+                "pageSize": 20,
                 "sortBy": "Savings",
                 "desc": 1
             },
@@ -29,33 +52,33 @@ def fetch_steam():
 
 
 def process_steam(data):
-    print("\n🔥 STEAM DEALS (20%+ only)")
-
-    found = 0
+    print("\n🔥 STEAM DEALS")
 
     for d in data:
         try:
+            deal_id = d.get("dealID")
+
+            if deal_id in sent_ids:
+                continue
+
             savings = float(d.get("savings", 0))
 
-            # 🔥 filter junk
             if savings < 20:
                 continue
 
-            deal_id = d.get("dealID")
-            if deal_id in seen_steam:
-                continue
+            sent_ids.add(deal_id)
 
-            seen_steam.add(deal_id)
+            msg = (
+                f"💰 **{d.get('title')}**\n"
+                f"${d.get('salePrice')} (was ${d.get('normalPrice')})\n"
+                f"🔥 {round(savings)}% OFF"
+            )
 
-            print(f"{d.get('title')} | ${d.get('salePrice')} (was ${d.get('normalPrice')}) - {round(savings)}% OFF")
+            print(msg)
+            send_discord("🔥 Steam Deal", msg, 0x1abc9c)
 
-            found += 1
-
-        except:
-            continue
-
-    if found == 0:
-        print("No strong Steam deals right now")
+        except Exception as e:
+            print("Steam parse error:", e)
 
 
 # ---------------- EPIC ----------------
@@ -74,34 +97,33 @@ def process_epic(data):
 
     games = data.get("data", {}).get("Catalog", {}).get("searchStore", {}).get("elements", [])
 
-    found = 0
-
     for g in games:
         try:
-            title = g.get("title")
             gid = g.get("id")
+            title = g.get("title")
 
-            if not title or not gid:
+            if not gid or gid in sent_ids:
                 continue
 
-            if gid in seen_epic:
+            price = g.get("price", {}).get("totalPrice", {}).get("fmtPrice", {}).get("originalPrice", "")
+
+            if price not in ["0", "0.00", "FREE"]:
                 continue
 
-            seen_epic.add(gid)
+            sent_ids.add(gid)
 
-            print(f"🎁 {title}")
-            found += 1
+            msg = f"🎁 **FREE EPIC GAME**\n{title}"
 
-        except:
-            continue
+            print(msg)
+            send_discord("🎮 Epic Free Game", msg, 0x5865f2)
 
-    if found == 0:
-        print("No new Epic freebies")
+        except Exception as e:
+            print("Epic parse error:", e)
 
 
-# ---------------- MAIN ----------------
+# ---------------- MAIN LOOP ----------------
 def main():
-    print("🚀 Deal Bot Running (Clean Mode)\n")
+    print("🚀 Deal Bot Started (Full Discord Version)\n")
 
     while True:
         steam = fetch_steam()
