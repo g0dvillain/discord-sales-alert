@@ -1,100 +1,99 @@
 import requests
 import time
 import schedule
-import matplotlib.pyplot as plt
 
-WEBHOOK_URL = "https://discord.com/api/webhooks/1494419687243644938/G2_Fj5bh69X6qS98YplRImZmcKs1FZV5fJm8JskCKjxuLSbGVSgKrXIptjJxC5UH7T1r"
+WEBHOOK_URL = "https://discord.com/api/webhooks/1494419687243644938/G2_Fj5bh69X6qS98YplRImZmcKs1FZV5fJm8JskCKjxuLSbGVSgKrXIptjJxC5UH7T1r
+"
 
 USD_TO_AUD = 1.55
-
 BASE_URL = "https://www.cheapshark.com/api/1.0/deals"
-GAME_INFO_URL = "https://www.cheapshark.com/api/1.0/games"
+
+# Steam = 1, Epic = 25
+STORE_IDS = ["1", "25"]
 
 
 # ----------------------------
 # Discord sender
 # ----------------------------
-def send_discord(msg, file=None):
+def send_discord(message):
     try:
-        if file:
-            with open(file, "rb") as f:
-                requests.post(
-                    WEBHOOK_URL,
-                    data={"content": msg},
-                    files={"file": f}
-                )
-        else:
-            requests.post(WEBHOOK_URL, json={"content": msg})
+        requests.post(WEBHOOK_URL, json={"content": message})
     except Exception as e:
         print("Discord error:", e)
 
 
 # ----------------------------
-# TEST MESSAGE (IMPORTANT)
-# ----------------------------
-def test_webhook():
-    print("Sending test webhook...")
-    send_discord("🔥 BOT IS ONLINE (TEST MESSAGE)")
-
-
-# ----------------------------
-# Convert currency
+# Convert USD → AUD
 # ----------------------------
 def to_aud(usd):
     return round(float(usd) * USD_TO_AUD, 2)
 
 
 # ----------------------------
-# Get deals
+# Deal checker
 # ----------------------------
 def check_deals():
-    print("Checking deals...")
+    print("🔎 Checking Steam + Epic deals...")
 
-    res = requests.get(BASE_URL, params={
-        "sortBy": "price",
-        "pageSize": 5
-    })
+    try:
+        for store in STORE_IDS:
+            res = requests.get(BASE_URL, params={
+                "storeID": store,
+                "sortBy": "savings",
+                "pageSize": 30
+            })
 
-    if res.status_code != 200:
-        print("API error")
-        return
+            if res.status_code != 200:
+                print("API error")
+                continue
 
-    deals = res.json()
+            deals = res.json()
 
-    for game in deals:
-        title = game["title"]
-        sale = float(game["salePrice"])
-        normal = float(game["normalPrice"])
-        savings = float(game["savings"])
-        deal_id = game["dealID"]
+            for game in deals:
+                savings = float(game["savings"])
 
-        sale_aud = to_aud(sale)
+                # 🎯 ONLY 50–70%
+                if savings < 50 or savings > 70:
+                    continue
 
-        msg = (
-            f"🎮 **{title}**\n"
-            f"💰 ${sale} USD (~${sale_aud} AUD)\n"
-            f"~~${normal}~~ (-{savings:.0f}%)\n"
-            f"🔗 https://www.cheapshark.com/redirect?dealID={deal_id}"
-        )
+                title = game["title"]
+                sale = float(game["salePrice"])
+                normal = float(game["normalPrice"])
+                deal_id = game["dealID"]
 
-        send_discord(msg)
-        time.sleep(2)
+                sale_aud = to_aud(sale)
+
+                store_name = "Steam" if store == "1" else "Epic"
+
+                message = (
+                    f"🎮 **{title}** ({store_name})\n"
+                    f"💰 ${sale} USD (~${sale_aud} AUD)\n"
+                    f"~~${normal}~~ (-{savings:.0f}%)\n"
+                    f"🔗 https://www.cheapshark.com/redirect?dealID={deal_id}"
+                )
+
+                send_discord(message)
+                time.sleep(1)
+
+    except Exception as e:
+        print("Error:", e)
 
 
 # ----------------------------
-# RUN ON START
+# STARTUP MESSAGE
 # ----------------------------
-test_webhook()   # 🔥 THIS IS THE IMPORTANT PART
+send_discord("🔥 BOT ONLINE - STEAM + EPIC ONLY (50–70%)")
 
+# Run once immediately
 check_deals()
 
 
 # ----------------------------
-# SCHEDULE (every 5 hours)
+# RUN ONCE PER DAY
 # ----------------------------
-schedule.every(5).hours.do(check_deals)
+schedule.every(24).hours.do(check_deals)
 
-print("Bot running...")
+print("🤖 Running daily deal bot...")
 
 while True:
     schedule.run_pending()
