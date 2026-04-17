@@ -2,8 +2,7 @@ import requests
 import time
 import schedule
 
-WEBHOOK_URL = "https://discord.com/api/webhooks/1494419687243644938/G2_Fj5bh69X6qS98YplRImZmcKs1FZV5fJm8JskCKjxuLSbGVSgKrXIptjJxC5UH7T1r
-"
+WEBHOOK_URL = "https://discord.com/api/webhooks/1494419687243644938/G2_Fj5bh69X6qS98YplRImZmcKs1FZV5fJm8JskCKjxuLSbGVSgKrXIptjJxC5UH7T1r"
 
 USD_TO_AUD = 1.55
 BASE_URL = "https://www.cheapshark.com/api/1.0/deals"
