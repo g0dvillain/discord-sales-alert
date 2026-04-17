@@ -7,8 +7,7 @@ WEBHOOK_URL = "https://discord.com/api/webhooks/1494419687243644938/G2_Fj5bh69X6
 USD_TO_AUD = 1.55
 BASE_URL = "https://www.cheapshark.com/api/1.0/deals"
 
-# Steam = 1, Epic = 25
-STORE_IDS = ["1", "25"]
+STORE_IDS = ["1", "25"]  # Steam + Epic
 
 
 # ----------------------------
@@ -22,6 +21,12 @@ def send_discord(message):
 
 
 # ----------------------------
+# TEST MESSAGE (SAFE)
+# ----------------------------
+send_discord("✅ TEST MESSAGE - BOT DEPLOYED SUCCESSFULLY")
+
+
+# ----------------------------
 # Convert USD → AUD
 # ----------------------------
 def to_aud(usd):
@@ -32,67 +37,61 @@ def to_aud(usd):
 # Deal checker
 # ----------------------------
 def check_deals():
-    print("🔎 Checking Steam + Epic deals...")
+    print("🔎 Checking deals...")
 
-    try:
-        for store in STORE_IDS:
-            res = requests.get(BASE_URL, params={
-                "storeID": store,
-                "sortBy": "savings",
-                "pageSize": 30
-            })
+    for store in STORE_IDS:
+        res = requests.get(BASE_URL, params={
+            "storeID": store,
+            "sortBy": "savings",
+            "pageSize": 30
+        })
 
-            if res.status_code != 200:
-                print("API error")
+        if res.status_code != 200:
+            continue
+
+        deals = res.json()
+
+        for game in deals:
+            savings = float(game["savings"])
+
+            # 🎯 ONLY 50–70%
+            if savings < 50 or savings > 70:
                 continue
 
-            deals = res.json()
+            title = game["title"]
+            sale = float(game["salePrice"])
+            normal = float(game["normalPrice"])
+            deal_id = game["dealID"]
 
-            for game in deals:
-                savings = float(game["savings"])
+            sale_aud = to_aud(sale)
 
-                # 🎯 ONLY 50–70%
-                if savings < 50 or savings > 70:
-                    continue
+            store_name = "Steam" if store == "1" else "Epic"
 
-                title = game["title"]
-                sale = float(game["salePrice"])
-                normal = float(game["normalPrice"])
-                deal_id = game["dealID"]
+            message = (
+                f"🎮 **{title}** ({store_name})\n"
+                f"💰 ${sale} USD (~${sale_aud} AUD)\n"
+                f"~~${normal}~~ (-{savings:.0f}%)\n"
+                f"🔗 https://www.cheapshark.com/redirect?dealID={deal_id}"
+            )
 
-                sale_aud = to_aud(sale)
-
-                store_name = "Steam" if store == "1" else "Epic"
-
-                message = (
-                    f"🎮 **{title}** ({store_name})\n"
-                    f"💰 ${sale} USD (~${sale_aud} AUD)\n"
-                    f"~~${normal}~~ (-{savings:.0f}%)\n"
-                    f"🔗 https://www.cheapshark.com/redirect?dealID={deal_id}"
-                )
-
-                send_discord(message)
-                time.sleep(1)
-
-    except Exception as e:
-        print("Error:", e)
+            send_discord(message)
+            time.sleep(1)
 
 
 # ----------------------------
-# STARTUP MESSAGE
+# STARTUP
 # ----------------------------
-send_discord("🔥 BOT ONLINE - STEAM + EPIC ONLY (50–70%)")
+send_discord("🔥 BOT ONLINE - DAILY DEAL SCANNER")
 
-# Run once immediately
 check_deals()
 
 
 # ----------------------------
-# RUN ONCE PER DAY
+# RUN DAILY
 # ----------------------------
 schedule.every(24).hours.do(check_deals)
 
-print("🤖 Running daily deal bot...")
+print("🤖 Running 24/7...")
 
 while True:
     schedule.run_pending()
